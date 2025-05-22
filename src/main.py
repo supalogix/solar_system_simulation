@@ -28,8 +28,8 @@ def main():
     #  - inclination (i) is the tilt of the orbital plane relative to Earth’s (i=0 by definition)
     #  - mass is quoted in kilograms but noted as a multiple of Earth’s mass
     # Choosing Earth as the reference makes these comparisons intuitive: we know what 1 AU,
-    # e≈0.017, i=0° and 1 Earth-mass feel like, so we can immediately grasp how Mercury’s
-    # 0.39 AU or Jupiter’s 318× Earth-mass stand out.
+    # e~0.017, i=0 degreee and 1 Earth-mass feel like, so we can immediately grasp how Mercury’s
+    # 0.39 AU or Jupiter’s 318x Earth-mass stand out.
     planets = [
         Planet(
             name="Mercury",
