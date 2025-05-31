@@ -14,138 +14,118 @@ our offsets in data that could be gathered by an actual mission.
 """
 
 import numpy as np
+import json
 
-from models import Planet, Satellite
-from time_dilation import calculate_time_dilation
-from config import planets_data, colors
-from plotting import plot_all_offsets, plot_individual, plot_satellite_contributions_over_orbit
-
-def generate_positions(satellites, angle):
-    # Compute each Lagrange point’s position by offsetting the main planet’s orbital angle:
-    # - L1 and L2 lie directly along the Sun–Planet line (zero offset)
-    # - L3 sits opposite the Planet (offset \pi)
-    # - L4 and L5 form equilateral triangles with the Planet (offset by 120 degrees)
-    positions = {
-        key: sat.position(angle + offset)
-        for (key, sat), offset in zip(
-            satellites.items(), [0, 0, np.pi, 2*np.pi/3, -2*np.pi/3]
-        )
-    }
-
-    return positions
-
-def generate_time_dilations(planets, positions):
-    # Compute the proper‐time slowdown at each Lagrange point by feeding its
-    # current position into our time‐dilation function, so we can compare
-    # how much each clock runs slow relative to our chosen reference.
-    tds = {
-        key: calculate_time_dilation(planets, position=pos)
-        for key, pos in positions.items()
-    }
-
-    return tds
-
-def generate_proper_time_offset(planets, satellites, main_planet, reference_satellite):
-    # Generate an hourly time grid over one full Earth year (365 days × 24 hours),
-    # giving us 8,760 evenly spaced time steps so we can track how the proper‐time
-    # offsets evolve throughout the orbit.
-    days_in_year = 365 * 24
-    times = np.arange(days_in_year)
-
-    # Prepare storage for proper-time offsets
-    proper_time_offset_data = {key: [] for key in satellites}
-
-    # We step through each simulated day to see how the Lagrange points move over time:
-    #   - Converting days to seconds keeps our inputs consistent with the physics math.
-    #   - Fetching the planets’s position defines the axis along which its Lagrange points lie.
-    #   - Extracting the orbital angle pinpoints exactly where each Lagrange point sits for
-    #     the proper-time calculation.
-    for day in times:
-
-        # Convert our day-based timestep into seconds, since all orbital and
-        # time-dilation calculations expect time in SI units (seconds).
-        t = day * 86400
-
-        # Determine the main planet’s location in space at time t so we can
-        # anchor the Lagrange points along the Sun–Planet line for this moment.
-        main_planet_position = main_planet.position(t)
-
-        # Compute Jupiter’s true bearing around the Sun (0 to 2*\pi), taking into account
-        # the signs of both x and y. This ensures we place each Lagrange point at the
-        # correct angular offset relative to Jupiter.
-        angle = np.arctan2(main_planet_position[1], main_planet_position[0])
-
-        # Compute each Lagrange point’s position by offsetting Jupiter’s orbital angle:
-        # - L1 and L2 lie directly along the Sun–Jupiter line (zero offset)
-        # - L3 sits opposite Jupiter (offset \pi)
-        # - L4 and L5 form equilateral triangles with Jupiter (offset by 120 degrees)
-        positions = generate_positions(satellites=satellites, angle=angle)
-
-        # Compute the proper‐time slowdown at each Lagrange point by feeding its
-        # current position into our time‐dilation function, so we can compare
-        # how much each clock runs slow relative to our chosen reference.
-        tds = generate_time_dilations(planets=planets, positions=positions)
-
-        ref = tds[reference_satellite]
-
-        # Record each point’s time‐dilation difference from our reference (L4)
-        # so we track how much faster or slower each clock runs compared to L4 over time.
-        for key, td in tds.items():
-            proper_time_offset_data[key].append(td - ref)
-        
-    return times, proper_time_offset_data
+from models import Planet
+from time_dilation import generate_simulation
+from config import planets_data, planets_data_2, colors
+from constants import solar_mass
+from helpers import generate_lagrange_orbital_params
 
 def generate_planets(planets_data):
+    """
+    Generate a list of Planet objects (including the Sun) from raw orbital data.
+
+    This function takes a list of dictionaries describing each planet’s orbital elements
+    and mass, computes the Sun’s barycentric semi-major axis based on those masses and
+    semi-major axes, inserts a Sun entry at the beginning of the list, and then
+    constructs a Planet instance for each entry.
+
+    Parameters
+    ----------
+    planets_data : list of dict
+        A list where each dict corresponds to a planet and must contain the keys:
+            - "name"   (str): Identifier for the body (e.g., "Mercury", "Earth").
+            - "type"   (str): Body type (e.g., "PLANET").
+            - "a"      (float): Semi-major axis of the orbit in meters.
+            - "e"      (float): Orbital eccentricity (0 <= e < 1).
+            - "i"      (float): Inclination in degrees.
+            - "Omega"  (float): Longitude of ascending node in degrees.
+            - "omega"  (float): Argument of periapsis in degrees.
+            - "nu"     (float): True anomaly at epoch in degrees.
+            - "mass"   (float): Mass of the body in kilograms.
+
+    Returns
+    -------
+    list of Planet
+        A list of Planet instances, in which the first element is the Sun (with
+        its semi-major axis set to the barycentric value computed from the input
+        planets), followed by the planets in the same order as `planets_data`.
+    """
+
+    # Compute the Sun’s reflex semi‐major axis about the system barycenter
+    # based on: Murray, C. D., & Dermott, S. F. (2000). Solar System Dynamics. 
+    M_sun = 1.9885e30  # kg
+    sun_a = sum(p["mass"] * p["a"] for p in planets_data) / M_sun
+
+    # Insert the Sun at the start of the list:
+    planets_data.insert(0, {
+        "name": "Sun",
+        "type": "PLANET",
+        "a": sun_a,     
+        "e": 0.0,       
+        "i": 0.0,       # define the reference plane
+        "Omega": 0.0,
+        "omega": 0.0,
+        "nu": 0.0,
+        "mass": M_sun
+    })
+
     planets = [Planet(**pdata) for pdata in planets_data]
 
     return planets
 
-def generate_satellites(planets, main_planet_name):
-    # Find Jupiter for reference by name
-    main_planet = next(p for p in planets if p.name == main_planet_name)
+def to_serializable(val):
+    # NumPy scalar?
+    if isinstance(val, np.generic):
+        return val.item()
 
-    # Initialize satellites
-    satellites = {
-        "L1": Satellite(name="L1", distance_from_sun=main_planet.a * 0.99),
-        "L2": Satellite(name="L2", distance_from_sun=main_planet.a * 1.01),
-        "L3": Satellite(name="L3", distance_from_sun=main_planet.a),
-        "L4": Satellite(name="L4", distance_from_sun=main_planet.a),
-        "L5": Satellite(name="L5", distance_from_sun=main_planet.a),
-    }
+    raise TypeError(f"Type {type(val)} not serializable")
 
-    return main_planet, satellites
-
-def generate_plots(times, proper_time_offset_data, colors):
-    # Plot combined and individual proper-time offsets
-    plot_all_offsets(times=times, data=proper_time_offset_data, colors=colors)
-    plot_individual(times=times, data=proper_time_offset_data, colors=colors)
 
 def main():
-    planets = generate_planets(
-        planets_data=planets_data
-    )
+    config = next(p for p in planets_data_2 if p['name'] == "Jupiter")
 
-    main_planet, satellites = generate_satellites(
-        planets=planets,
-        main_planet_name="Jupiter"
-    )
+    planets = generate_planets(planets_data=planets_data_2)
 
-    times, proper_time_offset_data = generate_proper_time_offset(
-        planets=planets, 
-        satellites=satellites, 
-        main_planet=main_planet,
-        reference_satellite="L1"
-    )
+    satellites_data = generate_lagrange_orbital_params(config, solar_mass.value)
 
-    generate_plots(
-        times=times,
-        proper_time_offset_data=proper_time_offset_data,
-        colors=colors
-    )
+    satellites = [Planet(**pdata) for pdata in satellites_data]
 
-    # Plot satellite contributions over a full orbit for each satellite
-    #for sat in satellites.values():
-    #    plot_satellite_contributions_over_orbit(planets=planets, satellite=sat, steps=360)
+    days_in_year = 365 * 24
+    times = np.arange(days_in_year)
+
+    for day in times:
+        t = day * 86400
+
+        log = generate_simulation(
+            planets=planets, 
+            satellites=satellites,
+            t=t
+        )
+
+        L1 = log['satellites']['L1']['time_dilation_total']
+        L2 = log['satellites']['L2']['time_dilation_total']
+        L3 = log['satellites']['L3']['time_dilation_total']
+        L4 = log['satellites']['L4']['time_dilation_total']
+        L5 = log['satellites']['L5']['time_dilation_total']
+
+        log['day'] = day
+        log['time_dilations'] = {}
+        log['time_dilations']['L4'] = {}
+        log['time_dilations']['L4']['L1'] = L1 - L4
+        log['time_dilations']['L4']['L2'] = L2 - L4
+        log['time_dilations']['L4']['L3'] = L3 - L4
+        log['time_dilations']['L4']['L4'] = L4 - L4
+        log['time_dilations']['L4']['L5'] = L5 - L4
+        log['time_dilations']['L5'] = {}
+        log['time_dilations']['L5']['L1'] = L1 - L5
+        log['time_dilations']['L5']['L2'] = L2 - L5
+        log['time_dilations']['L5']['L3'] = L3 - L5
+        log['time_dilations']['L5']['L4'] = L4 - L5
+        log['time_dilations']['L5']['L5'] = L5 - L5
+        json_pretty = json.dumps(log, indent=2, default=to_serializable)
+        print(json_pretty)
 
 if __name__ == "__main__":
     main()

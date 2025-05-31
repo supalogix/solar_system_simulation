@@ -3,21 +3,21 @@ This module provides support functions to calculate relativistic time dilation
 effects for a given set of massive bodies and observer positions. It exports
 utilities that, given the mass, position, and momentum of each planet, compute
 how much slower a clock ticks compared to one far from any gravitational source,
-returning the result in attoseconds (10^{-18} s).
+and returns the result in attoseconds (10^{-18} s).
 
 Time dilation arises from two distinct influences:
 
 1. Gravitational time dilation  
    A mass “bends” spacetime, causing clocks closer to it to tick more slowly.
    In the weak-field approximation, the fractional slowdown is
-   $\displaystyle \frac{G\,m}{r\,c^2}$, where
+   $\frac{G\,m}{r\,c^2}$, where
    $m$ is the body’s mass, $r$ is the distance to the clock, $G$ is
    Newton’s constant, and $c$ is the speed of light.
 
 2. Kinematic time dilation  
    A moving clock also ticks more slowly than one at rest.  For speeds
    $v \ll c$, the tiny fractional difference per second is
-   $\displaystyle \Delta t - \tau \approx \frac{1}{2}\,\frac{v^2}{c^2}$,
+   $\Delta t - \tau \approx \frac{1}{2}\,\frac{v^2}{c^2}$,
    where $v$ is the object’s speed.  Note that even if a body is very far
    away (so its gravitational effect is negligible), its high speed will
    still produce a kinematic slowdown detectable here.
@@ -42,8 +42,7 @@ def calculate_time_dilation_per_planet(planets, satellites, t=0):
 
     Args:
         planets (list of Planet): Planet objects providing mass, position(t), and momentum(t).
-        satellites (dict of str -> array-like): Mapping of satellite point names (e.g., "L1")
-            to their 3D observer positions.
+        satellites (list of Planet): Planet objects providing mass, position(t), and momentum(t).
         t (float, optional): Time in seconds at which to sample each planet's state.
             Defaults to 0.
 
@@ -52,7 +51,8 @@ def calculate_time_dilation_per_planet(planets, satellites, t=0):
             Nested dictionary where each satellite key maps to a dict of planet names
             and their corresponding time dilation (in attoseconds).
     """
-    sat_keys = list(satellites.keys())
+
+    sat_keys = [s.name for s in satellites]
     names    = [p.name for p in planets]
 
     # Prepare a container to accumulate each satellite’s time-dilation contributions
@@ -79,9 +79,9 @@ def calculate_time_dilation_per_planet(planets, satellites, t=0):
         v_sq  = p_sq / (m**2)
 
 
-        for key, obs_pos in satellites.items():
+        for satellite in satellites:
             # Distance for gravitational dilation
-            d = np.linalg.norm(obs_pos - planet_pos)
+            d = np.linalg.norm(satellite.position(t) - planet_pos)
 
             if d == 0:
                 continue
@@ -98,29 +98,88 @@ def calculate_time_dilation_per_planet(planets, satellites, t=0):
             td_kin = v_sq / (2 * c_mp**2)
 
             # Convert to attoseconds and store
-            result[key][planet.name] = float((td_grav + td_kin) * afs_conversion)
+            result[satellite.name][planet.name] = float((td_grav + td_kin) * afs_conversion)
 
     return result
 
-def calculate_time_dilation(planets, position, t=0):
+def generate_simulation(planets, satellites, t=0):
     """
-    Return the combined gravitational and kinematic time dilation at the given
-    observer position and time, in attoseconds, by summing each planet’s
-    contribution computed by calculate_time_dilation_per_planet.
+    Generate a snapshot log of all planets and satellites at time t, including positions,
+    velocities, momenta, and time‐dilation info for each satellite.
 
-    Args:
-        planets (list of Planet): Planet objects with mass, position(), and momentum().
-        position (array-like): 3D coordinates of the observer.
-        t (float, optional): Time in seconds to sample each planet’s state. Defaults to 0.
+    Parameters
+    ----------
+    planets : list of Planet
+        A list of Planet objects representing the primary bodies (Sun, Mercury, Venus, etc.).
+    satellites : list of Planet
+        A list of Planet objects representing test‐particles or Trojan/Lagrange‐point satellites.
+    t : float, optional
+        Simulation time in seconds at which to evaluate each body's state. Default is 0.
 
-    Returns:
-        float: Net time dilation offset per second, in attoseconds.
+    Returns
+    -------
+    dict
+        A nested dictionary with the following structure:
+
+        {
+            "time": float,  # equals t
+            "planets": {
+                "<planet_name>": {
+                    "position": { "px": float, "py": float, "pz": float },
+                    "velocity": { "vx": float, "vy": float, "vz": float },
+                    "momentum": { "mx": float, "my": float, "mz": float }
+                },
+                ...
+            },
+            "satellites": {
+                "<satellite_name>": {
+                    "position": { "px": float, "py": float, "pz": float },
+                    "velocity": { "vx": float, "vy": float, "vz": float },
+                    "momentum": { "mx": float, "my": float, "mz": float },
+                    "time_dilation_per_planet": {
+                        "<planet_name>": float,  # time dilation contribution in seconds
+                        ...
+                    },
+                    "time_dilation_total": float  # sum of all per‐planet time dilations
+                },
+                ...
+            }
+        }
     """
-    # Compute per‐planet dilation at a single “dummy” satellite key
-    per_planet = calculate_time_dilation_per_planet(
-        planets,
-        satellites={ "_observer": position },
+
+    log = {}
+    log['time'] = t
+    log['planets'] = {}
+    log['satellites'] = {}
+
+    for p in planets:
+        px, py, pz = p.position(t)
+        vx, vy, vz = p.velocity(t)
+        mx, my, mz = p.momentum(t)
+        log['planets'][p.name] = {}
+        log['planets'][p.name]['position'] = {'px': px, 'py': py, 'pz': pz}
+        log['planets'][p.name]['velocity'] = {'vx': vx, 'vy': vy, 'vz': vz}
+        log['planets'][p.name]['momentum'] = {'mx': mx, 'my': my, 'mz': mz}
+
+    for s in satellites:
+        px, py, pz = s.position(t)
+        vx, vy, vz = s.velocity(t)
+        mx, my, mz = s.momentum(t)
+        log['satellites'][s.name] = {}
+        log['satellites'][s.name]['position'] = {'px': px, 'py': py, 'pz': pz}
+        log['satellites'][s.name]['velocity'] = {'vx': vx, 'vy': vy, 'vz': vz}
+        log['satellites'][s.name]['momentum'] = {'mx': mx, 'my': my, 'mz': mz}
+
+    time_dilations_per_planet = calculate_time_dilation_per_planet(
+        planets=planets, 
+        satellites=satellites, 
         t=t
     )
-    # Extract the dict for our dummy key and sum all planet contributions
-    return sum(per_planet["_observer"].values())
+
+    sums = { L: sum(vals.values()) for L, vals in time_dilations_per_planet.items() }
+
+    for name, val in time_dilations_per_planet.items():
+        log['satellites'][name]['time_dilation_per_planet'] = val
+        log['satellites'][name]['time_dilation_total'] = sums[name]
+
+    return log

@@ -1,15 +1,7 @@
-# Rather than using abstract units, we anchor each planet’s orbital elements and mass to Earth’s 
-# baseline so it’s easy to see how each world differs:
-#  - semi-major axis (a) is given in meters but described as a multiple of 1 AU (Earth’s orbit)
-#  - eccentricity (e) measures how stretched the orbit is (Earth’s e≈0.0167 is nearly circular)
-#  - inclination (i) is the tilt of the orbital plane relative to Earth’s (i=0 by definition)
-#  - mass is quoted in kilograms but noted as a multiple of Earth’s mass
-# Choosing Earth as the reference makes these comparisons intuitive: we know what 1 AU,
-# e≈0.017, i=0° and 1 Earth-mass feel like, so we can immediately grasp how Mercury’s
-# 0.39 AU or Jupiter’s 318× Earth-mass stand out.
 planets_data = [
     {
         "name": "Mercury",
+        "type": "PLANET",
         "a": 5.791e10,
         "e": 0.2056,
         "i": 7.0,
@@ -20,6 +12,7 @@ planets_data = [
     },
     {
         "name": "Venus",
+        "type": "PLANET",
         "a": 1.082e11,
         "e": 0.0067,
         "i": 3.4,
@@ -30,6 +23,7 @@ planets_data = [
     },
     {
         "name": "Earth",
+        "type": "PLANET",
         "a": 1.496e11,
         "e": 0.0167,
         "i": 0.0,
@@ -40,6 +34,7 @@ planets_data = [
     },
     {
         "name": "Mars",
+        "type": "PLANET",
         "a": 2.279e11,
         "e": 0.0935,
         "i": 1.9,
@@ -50,6 +45,7 @@ planets_data = [
     },
     {
         "name": "Jupiter",
+        "type": "PLANET",
         "a": 7.785e11,
         "e": 0.0484,
         "i": 1.3,
@@ -60,6 +56,7 @@ planets_data = [
     },
     {
         "name": "Saturn",
+        "type": "PLANET",
         "a": 1.429e12,
         "e": 0.0565,
         "i": 2.5,
@@ -70,6 +67,7 @@ planets_data = [
     },
     {
         "name": "Uranus",
+        "type": "PLANET",
         "a": 2.871e12,
         "e": 0.0463,
         "i": 0.8,
@@ -80,8 +78,191 @@ planets_data = [
     },
     {
         "name": "Neptune",
+        "type": "PLANET",
         "a": 4.495e12,
         "e": 0.0086,
+        "i": 1.8,
+        "Omega": 131.8,
+        "omega": 276.5,
+        "nu": 0.0,
+        "mass": 1.024e26
+    }
+]
+
+planets_data_2 = [
+    {
+        "name": "Mercury",
+        "type": "PLANET",
+        "a": 5.791e10,
+        "e": 0.2056,
+        "i": 7.0,
+        "Omega": 48.3,
+        "omega": 29.1,
+        "nu": 0.0,
+        "mass": 3.285e23
+    },
+    {
+        "name": "Venus",
+        "type": "PLANET",
+        "a": 1.082e11,
+        "e": 0.0067,
+        "i": 3.4,
+        "Omega": 76.7,
+        "omega": 54.9,
+        "nu": 20.0,
+        "mass": 4.867e24
+    },
+    {
+        "name": "Earth",
+        "type": "PLANET",
+        "a": 1.496e11,
+        "e": 0.0167,
+        "i": 0.0,
+        "Omega": 0.0,
+        "omega": 102.9,
+        "nu": 60.0,
+        "mass": 5.972e24
+    },
+    {
+        "name": "Mars",
+        "type": "PLANET",
+        "a": 2.279e11,
+        "e": 0.0935,
+        "i": 1.9,
+        "Omega": 49.6,
+        "omega": 286.5,
+        "nu": 90.0,
+        "mass": 6.417e23
+    },
+    {
+        "name": "Jupiter",
+        "type": "PLANET",
+        "a": 7.785e11,
+        "e": 0.0484,
+        "i": 1.3,
+        "Omega": 100.5,
+        "omega": 273.6,
+        "nu": 120.0,
+        "mass": 1.898e27
+    },
+    {
+        "name": "Saturn",
+        "type": "PLANET",
+        "a": 1.429e12,
+        "e": 0.0565,
+        "i": 2.5,
+        "Omega": 113.6,
+        "omega": 339.6,
+        "nu": 180.0,
+        "mass": 5.683e26
+    },
+    {
+        "name": "Uranus",
+        "type": "PLANET",
+        "a": 2.871e12,
+        "e": 0.0463,
+        "i": 0.8,
+        "Omega": 74.0,
+        "omega": 96.6,
+        "nu": 220.0,
+        "mass": 8.681e25
+    },
+    {
+        "name": "Neptune",
+        "type": "PLANET",
+        "a": 4.495e12,
+        "e": 0.0086,
+        "i": 1.8,
+        "Omega": 131.8,
+        "omega": 276.5,
+        "nu": 300.0,
+        "mass": 1.024e26
+    }
+]
+
+planets_data_circular = [
+    {
+        "name": "Mercury",
+        "type": "PLANET",
+        "a": 5.791e10,
+        "e": 0.0,
+        "i": 7.0,
+        "Omega": 48.3,
+        "omega": 29.1,
+        "nu": 0.0,
+        "mass": 3.285e23
+    },
+    {
+        "name": "Venus",
+        "type": "PLANET",
+        "a": 1.082e11,
+        "e": 0.0,
+        "i": 3.4,
+        "Omega": 76.7,
+        "omega": 54.9,
+        "nu": 0.0,
+        "mass": 4.867e24
+    },
+    {
+        "name": "Earth",
+        "type": "PLANET",
+        "a": 1.496e11,
+        "e": 0.0,
+        "i": 0.0,
+        "Omega": 0.0,
+        "omega": 102.9,
+        "nu": 0.0,
+        "mass": 5.972e24
+    },
+    {
+        "name": "Mars",
+        "type": "PLANET",
+        "a": 2.279e11,
+        "e": 0.0,
+        "i": 1.9,
+        "Omega": 49.6,
+        "omega": 286.5,
+        "nu": 0.0,
+        "mass": 6.417e23
+    },
+    {
+        "name": "Jupiter",
+        "type": "PLANET",
+        "a": 7.785e11,
+        "e": 0.0,
+        "i": 1.3,
+        "Omega": 100.5,
+        "omega": 273.6,
+        "nu": 0.0,
+        "mass": 1.898e27
+    },
+    {
+        "name": "Saturn",
+        "type": "PLANET",
+        "a": 1.429e12,
+        "e": 0.0,
+        "i": 2.5,
+        "Omega": 113.6,
+        "omega": 339.6,
+        "nu": 0.0,
+        "mass": 5.683e26
+    },
+    {
+        "name": "Uranus",
+        "type": "PLANET",
+        "a": 2.871e12,
+        "e": 0.0,
+        "i": 0.8,
+        "Omega": 74.0,
+        "omega": 96.6,
+        "nu": 0.0,
+        "mass": 8.681e25
+    },
+    {
+        "name": "Neptune",
+        "type": "PLANET",
+        "a": 4.495e12,
+        "e": 0.0,
         "i": 1.8,
         "Omega": 131.8,
         "omega": 276.5,
