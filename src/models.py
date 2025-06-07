@@ -121,7 +121,6 @@ class Planet:
         # Compute the rate of change of true anomaly nu:
         dnu_dt = (np.sqrt(1 - self.e**2) * dE_dt) / (1 - self.e * np.cos(E))
 
-
         # Compute the in‐plane velocity components in the orbital frame
         vx_orb = r_dot * np.cos(nu) - r * dnu_dt * np.sin(nu)
         vy_orb = r_dot * np.sin(nu) + r * dnu_dt * np.cos(nu)

@@ -18,7 +18,7 @@ The simulation expects a Python list of dictionaries called `planets_data`. Each
 
 ### Data Structure
 
-Each entry in `planets_data` is a JSON‐style dictionary with the following keys:
+Each entry in `planets_data` can be viewed as JSON‐style dictionary with the following keys:
 
 | Key     | Type   | Units / Format            | Description                                                                            |
 | ------- | ------ | ------------------------- | -------------------------------------------------------------------------------------- |
@@ -43,9 +43,9 @@ Each entry in `planets_data` is a JSON‐style dictionary with the following key
   "type": "PLANET",
   "a": 5.791e10,           // 0.387 AU in meters
   "e": 0.2056,             // Mercury’s eccentricity
-  "i": 7.0,                // 7° inclination
-  "Omega": 48.3,           // 48.3° node longitude
-  "omega": 29.1,           // 29.1° argument of periapsis
+  "i": 7.0,                // 7 degree inclination
+  "Omega": 48.3,           // 48.3 degree node longitude
+  "omega": 29.1,           // 29.1 degree argument of periapsis
   "nu": 0.0,               // starting at true anomaly 0°
   "mass": 3.285e23         // Mercury’s mass in kg
 }
@@ -55,7 +55,7 @@ Each entry in `planets_data` is a JSON‐style dictionary with the following key
 
 ## Program Output Overview
 
-The JSON output contains the following top‐level fields:
+The output contains the following top‐level fields:
 
 * **time** (`number`): Simulation time in seconds.
 
