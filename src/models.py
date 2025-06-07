@@ -88,7 +88,7 @@ class Planet:
         y_orb = r * np.sin(nu)
         z_orb = 0.0
 
-        # Rotate the orbital‐plane coordinates by argument of periapsis ω about the z‐axis
+        # Rotate the orbital‐plane coordinates by argument of periapsis about the z‐axis
         x1 = x_orb * np.cos(self.omega) - y_orb * np.sin(self.omega)
         y1 = x_orb * np.sin(self.omega) + y_orb * np.cos(self.omega)
         z1 = 0.0
@@ -98,7 +98,7 @@ class Planet:
         y2 = y1 * np.cos(self.i) - z1 * np.sin(self.i)
         z2 = y1 * np.sin(self.i) + z1 * np.cos(self.i)
 
-        # Rotate by longitude of ascending node Ω about the z‐axis
+        # Rotate by longitude of ascending node about the z‐axis
         x = x2 * np.cos(self.Omega) - y2 * np.sin(self.Omega)
         y = x2 * np.sin(self.Omega) + y2 * np.cos(self.Omega)
         z = z2
@@ -118,7 +118,7 @@ class Planet:
         dE_dt = n / (1 - self.e * np.cos(E))
         r_dot = self.a * self.e * np.sin(E) * dE_dt
 
-        # Compute the rate of change of true anomaly nu:
+        # Compute the rate of change of true anomaly:
         dnu_dt = (np.sqrt(1 - self.e**2) * dE_dt) / (1 - self.e * np.cos(E))
 
         # Compute the in‐plane velocity components in the orbital frame

@@ -123,7 +123,7 @@ Ensure you have the virtual environment folder listed in your `.gitignore`:
 
 ## License
 
-This project is released under the [MIT License](LICENSE).
-See the `LICENSE` file for full details.
+This project is released under the [MIT License](https://opensource.org/licenses/MIT).  
+Full license text is available at the link above.
 
 ---
