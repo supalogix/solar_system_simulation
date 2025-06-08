@@ -157,23 +157,20 @@ def generate_planets(planets_data):
 
 def simulate_day(day: int,
                  planets_raw: list[dict],
-                 sats_raw:   list[dict]) -> dict:
+                 planet_name: str) -> dict:
     """
     Worker function that lives in a subprocess.
-    Reconstructs Planet objects, runs generate_simulation,
-    computes the L4/L5 offsets and returns the finished log.
+    Reconstructs Planet objects, runs generate_simulation for the five
+    Lagrange points of `planet_name` at time t, then computes and returns the log.
     """
-    # rebuild fresh Planet instances in this process
-    # (so everything is picklable)
-    planets    = generate_planets([dict(p) for p in planets_raw])
-    satellites = [Planet(**sd) for sd in sats_raw]
+    # Rebuild fresh Planet instances in this process
+    planets = generate_planets([dict(p) for p in planets_raw])
 
-    t   = day * 86400
-    log = generate_simulation(planets=planets,
-                              satellites=satellites,
-                              t=t)
+    t = day * 86400
+    # New signature: just planets + planet_name + time
+    log = generate_simulation(planets, planet_name, t)
 
-    # compute offsets
+    # Compute pairwise time‐dilation offsets relative to L4 and L5
     totals = {pt: log['satellites'][pt]['time_dilation_total']
               for pt in ("L1","L2","L3","L4","L5")}
     log['day'] = day
@@ -184,50 +181,38 @@ def simulate_day(day: int,
 
     return log
 
-# ---- ASYNC SIMULATION DRIVER ----
-# Orchestrates end-to-end simulation workflow
-# Builds timestamped YAML file in simulation_dump/
-# Prepares planet & satellite configs once
-# Streams daily logs without blocking I/O
-# Leverages asyncio for efficient file writes
-# Iterates over days without storing all data
 
 async def run_simulation():
-    # timestamped file
     now      = datetime.datetime.now()
     stamp    = now.strftime("%Y%m%d_%H%M%S")
     out_path = os.path.join("simulation_dump",
                             f"simulation_{stamp}.yaml")
 
-    # prep raw configs
+    # Prepare raw planet configs
     planets_raw = [dict(p) for p in planets_data_2]
+    # Identify the planet whose Lagrange points we want
     jup_cfg     = next(p for p in planets_data_2 if p['name']=="Jupiter")
-    sats_raw    = generate_lagrange_orbital_params(jup_cfg,
-                                                  solar_mass.value)
+    planet_name = jup_cfg['name']
 
-    # init YAML with configuration & empty simulation_data
-    await init_yaml_file(out_path, planets_raw, sats_raw)
+    # Initialize YAML with configuration
+    await init_yaml_file(out_path, planets_raw, None)
 
-    days = 365 * 24
+    #days = 365 * 24
+    days = 1
     loop = asyncio.get_running_loop()
 
-    # Use all available CPU cores to parallelize work:
-    # each of the 8,760 daily simulations is dispatched
-    # to one of N worker processes, so wall-clock time
-    # drops to roughly 1/N of the serial runtime,
-    # minus overhead for process startup, IPC, and I/O.
     with ProcessPoolExecutor() as pool:
-        # schedule all days
         tasks = [
-            loop.run_in_executor(pool,
-                                 simulate_day,
-                                 day,
-                                 planets_raw,
-                                 sats_raw)
+            loop.run_in_executor(
+                pool,
+                simulate_day,
+                day,
+                planets_raw,
+                planet_name
+            )
             for day in range(days)
         ]
 
-        # as each one completes, append it to the YAML
         for completed in asyncio.as_completed(tasks):
             log = await completed
             await append_log(out_path, log)

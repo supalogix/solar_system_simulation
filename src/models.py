@@ -13,6 +13,7 @@ Planet class implementation based on the following references:
 
 import numpy as np
 from constants import G, solar_mass
+from operator import itemgetter
 
 def compute_mean_motion(G, solar_mass, a):
     n = np.sqrt(G * solar_mass / a**3)
@@ -153,46 +154,39 @@ class Planet:
 
     def generate_parameters(self, t): 
         # Compute the mean motion
-        #n = np.sqrt(G.value * solar_mass.value / self.a**3)
         n = compute_mean_motion(G.value, solar_mass.value, self.a)
 
         # Recover the initial eccentric anomaly from the stored true anomaly
-        # E0 = 2*np.arctan2(
-        #     np.sqrt(1 - self.e) * np.sin(self.nu / 2),
-        #     np.sqrt(1 + self.e) * np.cos(self.nu / 2),
-        # )
         E0 = recover_initial_eccentric_anomaly(self.e, self.nu)
 
         # Compute the initial mean anomaly 
-        #M0 = E0 - self.e * np.sin(E0)
         M0 = compute_initial_mean_anomaly(E0, self.e)
 
         # Compute the current mean anomaly
-        #M = M0 + n * t
         M = compute_current_mean_anomaly(M0, n, t)
 
         # Solve Kepler’s equation for the eccentric anomaly
-        #E = M
-        #for _ in range(20):
-        #    E = M + self.e * np.sin(E)
         E = solve_keplers_equation_for_the_eccentric_anomaly(M, self.e)
 
         # Compute the true anomaly from the eccentric anomaly
-        #nu = 2*np.arctan2(
-        #    np.sqrt(1 + self.e) * np.sin(E / 2),
-        #    np.sqrt(1 - self.e) * np.cos(E / 2)
-        #)
         nu = compute_true_anomaly(self.e, E)
 
         # Compute the orbital radius from the eccentric anomaly
-        #r = self.a * (1 - self.e * np.cos(E))
         r = compute_orbital_radius(
             a = self.a, 
             e = self.e, 
             E = E
         )
 
-        return n, E0, M0, M, E, nu, r
+        return {
+            'n': n, 
+            'E0': E0, 
+            'M0': M0, 
+            'M': M, 
+            'E': E, 
+            'nu': nu, 
+            'r': r
+        }
 
 
     def position(self, t):
@@ -201,31 +195,18 @@ class Planet:
         initial true anomaly nu, argument of periapsis, node, and inclination.
         """
 
-        n, E0, M0, M, E, nu, r = self.generate_parameters(
-            t=t
-        )
-
-        # Compute the orbital radius from the eccentric anomaly
-        #r = self.a * (1 - self.e * np.cos(E))
-        #r = compute_orbital_radius(
-        #    a = self.a, 
-        #    e = self.e, 
-        #    E = E
+        #nu, r = self.generate_parameters(
+        #    t=t
         #)
+        nu, r = itemgetter('nu', 'r')(self.generate_parameters(t=t))
 
         # Coordinates in the orbital plane (before any 3D rotations)
-        #x_orb = r * np.cos(nu)
-        #y_orb = r * np.sin(nu)
-        #z_orb = 0.0
         x_orb, y_orb, z_orb = compute_coordinates_in_orbital_plane(
             r=r, 
             nu=nu
         )
 
         # Rotate the orbital‐plane coordinates by argument of periapsis about the z‐axis
-        #x1 = x_orb * np.cos(self.omega) - y_orb * np.sin(self.omega)
-        #y1 = x_orb * np.sin(self.omega) + y_orb * np.cos(self.omega)
-        #z1 = 0.0
         x1, y1, z1 = rotate_orbital_plane_coordinates(
             x_orb=x_orb,
             y_orb=y_orb,
@@ -234,9 +215,6 @@ class Planet:
         )
 
         # Rotate by inclination about the x‐axis
-        #x2 = x1
-        #y2 = y1 * np.cos(self.i) - z1 * np.sin(self.i)
-        #z2 = y1 * np.sin(self.i) + z1 * np.cos(self.i)
         x2, y2, z2 = rotate_by_x_axis_inclination(
             x1=x1,
             y1=y1,
@@ -245,9 +223,6 @@ class Planet:
         )
 
         # Rotate by longitude of ascending node about the z‐axis
-        #x = x2 * np.cos(self.Omega) - y2 * np.sin(self.Omega)
-        #y = x2 * np.sin(self.Omega) + y2 * np.cos(self.Omega)
-        #z = z2
         x, y, z = rotate_by_z_axis_longitude_ascending_node(
             x2=x2,
             y2=y2,
@@ -263,13 +238,11 @@ class Planet:
         the initial true anomaly nu, argument of periapsis, inclination, and node.
         """
 
-        n, E0, M0, M, E, nu, r = self.generate_parameters(t)
+        #n, E, nu, r = self.generate_parameters(t)
 
-        # Compute the orbital radius and its time derivative
-        #r = self.a * (1 - self.e * np.cos(E))
-        #dE_dt = n / (1 - self.e * np.cos(E))
-        #r_dot = self.a * self.e * np.sin(E) * dE_dt
+        n, nu, E, r = itemgetter('n', 'nu', 'E', 'r')(self.generate_parameters(t=t))
 
+        # Compute time derivative
         dE_dt, r_dot = compute_time_derivative(
             n=n,
             a=self.a,
@@ -278,7 +251,6 @@ class Planet:
         )
 
         # Compute the rate of change of true anomaly:
-        #dnu_dt = (np.sqrt(1 - self.e**2) * dE_dt) / (1 - self.e * np.cos(E))
         dnu_dt = compute_true_anomaly_rate_of_change(
             e=self.e,
             E=E,
@@ -286,9 +258,6 @@ class Planet:
         )
 
         # Compute the in‐plane velocity components in the orbital frame
-        #vx_orb = r_dot * np.cos(nu) - r * dnu_dt * np.sin(nu)
-        #vy_orb = r_dot * np.sin(nu) + r * dnu_dt * np.cos(nu)
-        #vz_orb = 0.0
         vx_orb, vy_orb, vz_orb = compute_orbital_frame_in_plane_velocity_components(
             r=r,
             r_dot=r_dot,
@@ -297,9 +266,6 @@ class Planet:
         )
 
         # Rotate the in‐plane velocity by the argument of periapsis about the z‐axis
-        #v1x = vx_orb * np.cos(self.omega) - vy_orb * np.sin(self.omega)
-        #v1y = vx_orb * np.sin(self.omega) + vy_orb * np.cos(self.omega)
-        #v1z = 0.0
         v1x, v1y, v1z = rotate_in_plane_velocity(
             vx_orb=vx_orb,
             vy_orb=vy_orb,
@@ -308,9 +274,6 @@ class Planet:
         )
 
         # Rotate the velocity by the inclination about the x‐axis
-        #v2x = v1x
-        #v2y = v1y * np.cos(self.i) - v1z * np.sin(self.i)
-        #v2z = v1y * np.sin(self.i) + v1z * np.cos(self.i)
         v2x, v2y, v2z = rotate_x_axis_inclination_velocity(
             v1x=v1x,
             v1y=v1y,
@@ -320,9 +283,6 @@ class Planet:
 
 
         # Rotate the velocity by the longitude of ascending node about the z‐axis
-        #vx =  v2x * np.cos(self.Omega) - v2y * np.sin(self.Omega)
-        #vy =  v2x * np.sin(self.Omega) + v2y * np.cos(self.Omega)
-        #vz =  v2z
         vx, vy, vz = rotate_velocity_by_longitude(
             v2x=v2x,
             v2y=v2y,
