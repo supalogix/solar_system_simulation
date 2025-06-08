@@ -35,6 +35,17 @@ from constants import G_mp, c_mp, afs_conversion
 # Use high precision so tiny relativistic effects are captured
 mp.dps = 50
 
+def compute_gravitation_slowdown(G_mp, m, d, c_mp):
+    td_grav = (G_mp * m) / (d * c_mp**2)
+
+    return td_grav
+
+def compute_kinematic_slowdown(v_sq, c_mp):
+    td_kin = v_sq / (2 * c_mp**2)
+
+    return td_kin
+
+
 def calculate_time_dilation_per_planet(planets, satellites, t=0):
     """
     Return gravitational and kinematic time dilation in attoseconds for each planet
@@ -62,7 +73,6 @@ def calculate_time_dilation_per_planet(planets, satellites, t=0):
         for key in sat_keys
     }
 
-
     for planet in planets:
         # High-precision mass m
         m = mp.mpf(planet.mass)
@@ -78,7 +88,6 @@ def calculate_time_dilation_per_planet(planets, satellites, t=0):
         p_sq  = mp.mpf(np.dot(p_vec, p_vec))
         v_sq  = p_sq / (m**2)
 
-
         for satellite in satellites:
             # Distance for gravitational dilation
             d = np.linalg.norm(satellite.position(t) - planet_pos)
@@ -90,12 +99,22 @@ def calculate_time_dilation_per_planet(planets, satellites, t=0):
             # closer to the planet. Clocks near the planet tick slightly slower than those
             # farther away. In the weak gravitational field of a planet, we can approximate
             # this tiny effect with a simple formula.
-            td_grav = (G_mp * m) / (d * c_mp**2)
+            #td_grav = (G_mp * m) / (d * c_mp**2)
+            td_grav = compute_gravitation_slowdown(
+                G_mp=G_mp,
+                m=m,
+                d=d,
+                c_mp=c_mp
+            )
 
             # Kinematic slowdown: according to relativity, a moving clock ticks more slowly
             # compared to one at rest. Even at everyday speeds, this tiny delay grows with
             # the square of the speed, so we include a small correction for the planet’s motion.
-            td_kin = v_sq / (2 * c_mp**2)
+            #td_kin = v_sq / (2 * c_mp**2)
+            td_kin = compute_kinematic_slowdown(
+                v_sq=v_sq,
+                c_mp=c_mp
+            )
 
             # Convert to attoseconds and store
             result[satellite.name][planet.name] = float((td_grav + td_kin) * afs_conversion)

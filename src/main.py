@@ -8,6 +8,8 @@ file, with full support for numpy types via custom PyYAML representers.
 import os
 import asyncio
 import datetime
+import random
+from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 import yaml
@@ -122,19 +124,65 @@ async def append_log(path: str, log: dict):
 
 def generate_planets(planets_data):
     """
-    Insert the Sun (with barycentric a) into planets_data and
-    return a list of Planet instances.
+    Insert the Sun (with barycentric semi-major axis) into planets_data and
+    return a list of Planet instances — but first randomize each planet’s
+    starting true anomaly so they all begin at a random point in their orbits.
     """
+
+    # 1) Randomize starting angle for each planet in degrees
+    for p in planets_data:
+        p['nu'] = random.uniform(0.0, 360.0)
+
+    # 2) Compute the Sun’s reflex semi-major axis about the system barycenter
     M_sun = solar_mass.value
     sun_a = sum(p["mass"] * p["a"] for p in planets_data) / M_sun
 
+    # 3) Insert the Sun at the start (we keep its nu = 0)
     planets_data.insert(0, {
-        "name": "Sun", "type": "PLANET", "a": sun_a,
-        "e": 0.0, "i": 0.0, "Omega": 0.0, "omega": 0.0, "nu": 0.0,
-        "mass": M_sun
+        "name":  "Sun",
+        "type":  "PLANET",
+        "a":      sun_a,
+        "e":      0.0,
+        "i":      0.0,
+        "Omega":  0.0,
+        "omega":  0.0,
+        "nu":     0.0,
+        "mass":   M_sun
     })
+
+    # 4) Build Planet objects
     return [Planet(**pdata) for pdata in planets_data]
 
+
+
+def simulate_day(day: int,
+                 planets_raw: list[dict],
+                 sats_raw:   list[dict]) -> dict:
+    """
+    Worker function that lives in a subprocess.
+    Reconstructs Planet objects, runs generate_simulation,
+    computes the L4/L5 offsets and returns the finished log.
+    """
+    # rebuild fresh Planet instances in this process
+    # (so everything is picklable)
+    planets    = generate_planets([dict(p) for p in planets_raw])
+    satellites = [Planet(**sd) for sd in sats_raw]
+
+    t   = day * 86400
+    log = generate_simulation(planets=planets,
+                              satellites=satellites,
+                              t=t)
+
+    # compute offsets
+    totals = {pt: log['satellites'][pt]['time_dilation_total']
+              for pt in ("L1","L2","L3","L4","L5")}
+    log['day'] = day
+    log['time_dilations'] = {
+        'L4': {pt: totals[pt] - totals['L4'] for pt in totals},
+        'L5': {pt: totals[pt] - totals['L5'] for pt in totals},
+    }
+
+    return log
 
 # ---- ASYNC SIMULATION DRIVER ----
 # Orchestrates end-to-end simulation workflow
@@ -144,47 +192,45 @@ def generate_planets(planets_data):
 # Leverages asyncio for efficient file writes
 # Iterates over days without storing all data
 
-
 async def run_simulation():
-    # Build a timestamped output filename
+    # timestamped file
     now      = datetime.datetime.now()
     stamp    = now.strftime("%Y%m%d_%H%M%S")
-    out_path = os.path.join("simulation_dump", f"simulation_{stamp}.yaml")
+    out_path = os.path.join("simulation_dump",
+                            f"simulation_{stamp}.yaml")
 
-    # Prepare raw configuration dicts (without converting to Planet instances)
-    config_planets = [dict(p) for p in planets_data_2]
-    jup_config     = next(p for p in planets_data_2 if p['name'] == "Jupiter")
-    config_sats    = generate_lagrange_orbital_params(
-                        jup_config, solar_mass.value)
+    # prep raw configs
+    planets_raw = [dict(p) for p in planets_data_2]
+    jup_cfg     = next(p for p in planets_data_2 if p['name']=="Jupiter")
+    sats_raw    = generate_lagrange_orbital_params(jup_cfg,
+                                                  solar_mass.value)
 
-    # Initialize the YAML file with configuration + empty simulation_data
-    await init_yaml_file(out_path, config_planets, config_sats)
+    # init YAML with configuration & empty simulation_data
+    await init_yaml_file(out_path, planets_raw, sats_raw)
 
-    # Construct the actual Planet objects (this will insert the Sun)
-    run_planets = generate_planets([dict(p) for p in planets_data_2])
-    run_sats    = [Planet(**sd) for sd in config_sats]
+    days = 365 * 24
+    loop = asyncio.get_running_loop()
 
-    # Stream each day's simulation result
-    days_in_year = 365 * 24
-    for day in range(days_in_year):
-        t   = day * 86400
-        log = generate_simulation(
-            planets=run_planets,
-            satellites=run_sats,
-            t=t
-        )
+    # Use all available CPU cores to parallelize work:
+    # each of the 8,760 daily simulations is dispatched
+    # to one of N worker processes, so wall-clock time
+    # drops to roughly 1/N of the serial runtime,
+    # minus overhead for process startup, IPC, and I/O.
+    with ProcessPoolExecutor() as pool:
+        # schedule all days
+        tasks = [
+            loop.run_in_executor(pool,
+                                 simulate_day,
+                                 day,
+                                 planets_raw,
+                                 sats_raw)
+            for day in range(days)
+        ]
 
-        # Compute offsets relative to L4 and L5
-        totals = {pt: log['satellites'][pt]['time_dilation_total']
-                  for pt in ("L1","L2","L3","L4","L5")}
-        log['day'] = day
-        log['time_dilations'] = {
-            'L4': {pt: totals[pt] - totals['L4'] for pt in totals},
-            'L5': {pt: totals[pt] - totals['L5'] for pt in totals},
-        }
-
-        # Append this day's log under simulation_data
-        await append_log(out_path, log)
+        # as each one completes, append it to the YAML
+        for completed in asyncio.as_completed(tasks):
+            log = await completed
+            await append_log(out_path, log)
 
     print(f"Wrote simulation to '{out_path}'")
 
