@@ -171,7 +171,7 @@ def find_equilateral_lagrange(planet_name, planets, t=0):
     # in‐plane orthonormal
     y_hat = np.cross(z_hat, x_hat)
 
-    # 4) rotate by ±60° in that plane
+    # 4) rotate by 60 degrees in that plane
     cos60, sin60 = 0.5, np.sqrt(3)/2
 
     L4_dir =  x_hat * cos60 + y_hat * sin60
@@ -194,6 +194,7 @@ def find_all_lagrange_points(planet_name, planets, t=0):
 
     Returns:
         dict: {
+            'L0': np.array([x,y,z]),
             'L1': np.array([x,y,z]),
             'L2': np.array([x,y,z]),
             'L3': np.array([x,y,z]),
@@ -208,6 +209,7 @@ def find_all_lagrange_points(planet_name, planets, t=0):
 
     # merge and return
     return {
+        'L0': np.array([0,0,0]),
         'L1': collinear['L1'],
         'L2': collinear['L2'],
         'L3': collinear['L3'],
@@ -331,6 +333,7 @@ def generate_simulation(planets, planet_name, t=0):
 
     # --- compute L1–L5 positions ---
     lag_points = find_all_lagrange_points(planet_name, planets, t)
+
     # --- compute time dilations at those points ---
     td_per_planet = calculate_time_dilation_per_planet(planets, planet_name, t)
 

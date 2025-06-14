@@ -19,7 +19,6 @@ from models import Planet
 from time_dilation import generate_simulation
 from config import planets_data_2
 from constants import solar_mass
-from helpers import generate_lagrange_orbital_params
 
 # ---- Register NumPy representers with PyYAML ----
 # PyYAML cannot serialize NumPy scalars and arrays
@@ -172,9 +171,13 @@ def simulate_day(day: int,
 
     # Compute pairwise time‐dilation offsets relative to L4 and L5
     totals = {pt: log['satellites'][pt]['time_dilation_total']
-              for pt in ("L1","L2","L3","L4","L5")}
+              for pt in ("L0", "L1","L2","L3","L4","L5")}
     log['day'] = day
     log['time_dilations'] = {
+        'L0': {pt: totals[pt] - totals['L0'] for pt in totals},
+        'L1': {pt: totals[pt] - totals['L1'] for pt in totals},
+        'L2': {pt: totals[pt] - totals['L2'] for pt in totals},
+        'L3': {pt: totals[pt] - totals['L3'] for pt in totals},
         'L4': {pt: totals[pt] - totals['L4'] for pt in totals},
         'L5': {pt: totals[pt] - totals['L5'] for pt in totals},
     }
@@ -197,8 +200,7 @@ async def run_simulation():
     # Initialize YAML with configuration
     await init_yaml_file(out_path, planets_raw, None)
 
-    #days = 365 * 24
-    days = 1
+    days = 365 * 24
     loop = asyncio.get_running_loop()
 
     with ProcessPoolExecutor() as pool:
